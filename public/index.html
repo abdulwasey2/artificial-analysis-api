@@ -1,0 +1,854 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Artificial Analysis — Model Ranker</title>
+    <style>
+      :root {
+        --bg: #f7fafc;
+        --card: #ffffff;
+        --muted: #6b7280;
+        --accent: #2563eb;
+        --warning-bg: #fff7ed;
+        --warning-text: #c2410c;
+        --warning-border: #fdba74;
+        --th-hover: #e2e8f0;
+        --th-active: #cbd5e1;
+      }
+      body {
+        font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica,
+          Arial;
+        background: var(--bg);
+        margin: 0;
+        color: #111827;
+      }
+      header {
+        background: linear-gradient(90deg, #0ea5e9 0%, #6366f1 100%);
+        color: #fff;
+        padding: 1rem;
+      }
+      .container {
+        max-width: 1400px;
+        margin: 1rem auto;
+        padding: 1rem;
+      }
+      .controls {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        align-items: center;
+      }
+      button,
+      input[type="search"],
+      select,
+      label {
+        padding: 0.45rem 0.75rem;
+        border-radius: 8px;
+        border: 1px solid #e5e7eb;
+        background: #fff;
+      }
+      .panel {
+        background: var(--card);
+        padding: 1rem;
+        border-radius: 8px;
+        box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+      }
+
+      /* Metrics Grid Layout */
+      .metrics-section {
+        margin-bottom: 1rem;
+      }
+      .metrics-section strong {
+        display: block;
+        margin-bottom: 0.5rem;
+        font-size: 0.95rem;
+        color: #374151;
+      }
+      .metrics-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+        gap: 0.5rem;
+      }
+      .metric-checkbox {
+        display: flex;
+        gap: 0.5rem;
+        align-items: center;
+        font-size: 0.85rem;
+        cursor: pointer;
+      }
+
+      /* Table Styles */
+      .table {
+        width: 100%;
+        border-collapse: separate;
+        border-spacing: 0;
+        margin-top: 1rem;
+      }
+      .table th,
+      .table td {
+        padding: 0.5rem;
+        border-bottom: 1px solid #eef2f7;
+        font-size: 0.95rem;
+        text-align: left;
+        vertical-align: top;
+        white-space: nowrap;
+      }
+
+      /* Header Sorting Styles */
+      .table th {
+        background: #f9fafb;
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        border-bottom: 2px solid #e5e7eb;
+        cursor: pointer;
+        user-select: none;
+        transition: background 0.2s;
+      }
+      .table th:hover {
+        background: var(--th-hover);
+      }
+      .table th.active-sort {
+        background: var(--th-active);
+        color: #000;
+        font-weight: bold;
+        border-bottom-color: var(--accent);
+      }
+      .sort-icon {
+        display: inline-block;
+        margin-left: 4px;
+        font-size: 0.8rem;
+        width: 10px;
+      }
+
+      /* Sticky Model Column Logic */
+      .col-rank {
+        position: sticky;
+        left: 0;
+        background: inherit;
+        z-index: 20;
+        border-right: 1px solid #e5e7eb;
+        width: 40px;
+        text-align: center;
+      }
+      .col-model {
+        position: sticky;
+        left: 40px;
+        background: inherit;
+        z-index: 20;
+        border-right: 2px solid #e5e7eb;
+        min-width: 200px;
+        max-width: 350px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      /* Ensure headers for sticky cols are also sticky and on top */
+      thead th.col-rank,
+      thead th.col-model {
+        z-index: 30;
+      }
+
+      .null {
+        color: var(--muted);
+        font-style: italic;
+      }
+      .badge {
+        display: inline-block;
+        padding: 0.15rem 0.5rem;
+        background: #f3f4f6;
+        border-radius: 999px;
+        font-size: 0.75rem;
+        color: #374151;
+      }
+
+      .missing-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        font-size: 0.75rem;
+        font-weight: 500;
+        background: var(--warning-bg);
+        color: var(--warning-text);
+        border: 1px solid var(--warning-border);
+        border-radius: 4px;
+        padding: 2px 6px;
+        margin-left: 8px;
+        cursor: help;
+        white-space: nowrap;
+      }
+
+      .card {
+        background: var(--card);
+        border-radius: 8px;
+        padding: 0.75rem;
+        margin-bottom: 0.75rem;
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+      }
+      .spinner {
+        width: 18px;
+        height: 18px;
+        border: 3px solid rgba(0, 0, 0, 0.08);
+        border-left-color: var(--accent);
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+        display: inline-block;
+      }
+      .adv-col {
+        font-size: 0.92rem;
+      }
+      .pricing-val {
+        font-family: monospace;
+      }
+      #tableWrap {
+        overflow-x: auto;
+        max-height: 80vh;
+      }
+
+      th[title] {
+        text-decoration: underline dotted;
+      }
+
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+      @media (max-width: 800px) {
+        .table {
+          display: none;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div class="container">
+        <h1 style="margin: 0 0 0.25rem 0">
+          Model Ranker — Artificial Analysis
+        </h1>
+        <div style="opacity: 0.95; font-size: 0.9rem">
+          Select metrics below to customize the table. Click headers to sort.
+        </div>
+      </div>
+    </header>
+
+    <main class="container">
+      <div class="controls">
+        <button id="refreshBtn">
+          Refresh
+          <span
+            id="refreshSpinner"
+            style="display: none"
+            class="spinner"
+          ></span>
+        </button>
+        <input
+          id="searchInput"
+          type="search"
+          placeholder="Search model or creator..."
+        />
+        <label
+          ><input id="nullZeroChk" type="checkbox" checked /> Treat null as
+          0</label
+        >
+        <button id="exportCsvBtn">Export CSV</button>
+        <button id="viewJsonBtn">View raw JSON</button>
+      </div>
+
+      <div class="panel" style="margin-top: 1rem">
+        <div class="metrics-section">
+          <strong>Benchmark Metrics (Included in Sum)</strong>
+          <div id="metricsControls" class="metrics-grid"></div>
+        </div>
+        <div
+          class="metrics-section"
+          style="
+            margin-bottom: 0;
+            border-top: 1px solid #e5e7eb;
+            padding-top: 0.5rem;
+          "
+        >
+          <strong>Advanced Columns (Not in Sum)</strong>
+          <div id="advMetricsControls" class="metrics-grid"></div>
+        </div>
+      </div>
+
+      <div id="summary" style="margin-top: 1rem"></div>
+
+      <div id="tableWrap" class="panel" style="margin-top: 1rem">
+        <table id="resultsTable" class="table" aria-live="polite">
+          <thead>
+            <!-- Headers generated by JS -->
+          </thead>
+          <tbody id="resultsBody"></tbody>
+        </table>
+
+        <div id="cardsContainer" style="display: none"></div>
+      </div>
+
+      <div style="margin-top: 1rem; font-size: 0.9rem; color: var(--muted)">
+        Data provided by
+        <a href="https://artificialanalysis.ai/" target="_blank" rel="noopener"
+          >Artificial Analysis</a
+        >. Attribution required.
+      </div>
+    </main>
+
+    <script>
+      // --- Configuration ---
+      const METRICS = [
+        {
+          key: "artificial_analysis_intelligence_index",
+          label: "AA Intel",
+          title: "Artificial Analysis Intelligence Index",
+        },
+        {
+          key: "artificial_analysis_coding_index",
+          label: "AA Coding",
+          title: "Artificial Analysis Coding Index",
+        },
+        {
+          key: "artificial_analysis_math_index",
+          label: "AA Math",
+          title: "Artificial Analysis Math Index",
+        },
+        { key: "lcr", label: "LCR", title: "LiveCodeBench Reasoning" },
+        { key: "hle", label: "HLE", title: "Humanities & Law Evaluation" },
+        {
+          key: "mmlu_pro",
+          label: "MMLU Pro",
+          title: "Massive Multitask Language Understanding Pro",
+        },
+        {
+          key: "gpqa",
+          label: "GPQA",
+          title: "Graduate-Level Google-Proof Q&A Benchmark",
+        },
+        { key: "livecodebench", label: "LCB", title: "LiveCodeBench" },
+        {
+          key: "scicode",
+          label: "SciCode",
+          title: "Scientific Coding Benchmark",
+        },
+        { key: "math_500", label: "Math 500", title: "Math 500 Benchmark" },
+        {
+          key: "aime",
+          label: "AIME",
+          title: "American Invitational Mathematics Examination",
+        },
+        { key: "aime_25", label: "AIME 25", title: "AIME 2025" },
+        {
+          key: "ifbench",
+          label: "IFBench",
+          title: "Instruction Following Benchmark",
+        },
+        {
+          key: "tau2",
+          label: "TAU-2",
+          title: "Tool-Augmented Unifying Framework",
+        },
+        {
+          key: "terminalbench_hard",
+          label: "TermBench (H)",
+          title: "Terminal Bench Hard",
+        },
+      ];
+
+      // Advanced columns defined as objects for dynamic generation
+      const ADV_METRICS = [
+        { key: "release_date", label: "Release", title: "Release Date" },
+        {
+          key: "price_blend",
+          label: "Price (Blend)",
+          title: "Price per 1M Tokens (Blended 3:1)",
+        },
+        {
+          key: "price_input",
+          label: "Price (In)",
+          title: "Price per 1M Input Tokens",
+        },
+        {
+          key: "price_output",
+          label: "Price (Out)",
+          title: "Price per 1M Output Tokens",
+        },
+        {
+          key: "ops",
+          label: "OPS",
+          title: "Output Tokens Per Second (Median)",
+        },
+        {
+          key: "ttf",
+          label: "TTF (s)",
+          title: "Time To First Token (Seconds)",
+        },
+        {
+          key: "ttfa",
+          label: "TTFA (s)",
+          title: "Time To First Answer Token (Seconds)",
+        },
+      ];
+
+      // --- State ---
+      let rawData = [];
+      let selectedMetrics = new Set([
+        "artificial_analysis_intelligence_index",
+        "mmlu_pro",
+        "gpqa",
+        "livecodebench",
+        "math_500",
+      ]);
+      // Default selected advanced metrics (none or some, as you wish)
+      let selectedAdvMetrics = new Set(["release_date"]);
+
+      // Sorting State: key = column key, dir = 'desc' | 'asc' | null (reset)
+      // Default: Sort by Sum Descending
+      let sortState = { key: "release_date", dir: "desc" };
+
+      // --- DOM Elements ---
+      const $metricsControls = document.getElementById("metricsControls");
+      const $advMetricsControls = document.getElementById("advMetricsControls");
+      const $resultsTable = document.getElementById("resultsTable");
+      const $resultsBody = document.getElementById("resultsBody");
+      const $cards = document.getElementById("cardsContainer");
+      const $summary = document.getElementById("summary");
+      const $refreshBtn = document.getElementById("refreshBtn");
+      const $refreshSpinner = document.getElementById("refreshSpinner");
+      const $searchInput = document.getElementById("searchInput");
+      const $nullZeroChk = document.getElementById("nullZeroChk");
+      const $exportCsvBtn = document.getElementById("exportCsvBtn");
+      const $viewJsonBtn = document.getElementById("viewJsonBtn");
+
+      // --- Initialization ---
+      function initControls() {
+        // Standard Metrics
+        METRICS.forEach((m) => {
+          const div = document.createElement("div");
+          div.className = "metric-checkbox";
+          const id = "chk_" + m.key;
+          const isChecked = selectedMetrics.has(m.key) ? "checked" : "";
+          div.innerHTML =
+            '<label title="' +
+            m.title +
+            '"><input type="checkbox" id="' +
+            id +
+            '" ' +
+            isChecked +
+            " /> " +
+            m.label +
+            "</label>";
+          $metricsControls.appendChild(div);
+          document.getElementById(id).addEventListener("change", (e) => {
+            if (e.target.checked) selectedMetrics.add(m.key);
+            else selectedMetrics.delete(m.key);
+            render();
+          });
+        });
+
+        // Advanced Metrics (New Section)
+        ADV_METRICS.forEach((m) => {
+          const div = document.createElement("div");
+          div.className = "metric-checkbox";
+          const id = "chk_adv_" + m.key;
+          const isChecked = selectedAdvMetrics.has(m.key) ? "checked" : "";
+          div.innerHTML =
+            '<label title="' +
+            m.title +
+            '"><input type="checkbox" id="' +
+            id +
+            '" ' +
+            isChecked +
+            " /> " +
+            m.label +
+            "</label>";
+          $advMetricsControls.appendChild(div);
+          document.getElementById(id).addEventListener("change", (e) => {
+            if (e.target.checked) selectedAdvMetrics.add(m.key);
+            else selectedAdvMetrics.delete(m.key);
+            render();
+          });
+        });
+      }
+
+      // --- Data Handling ---
+      function parseNumberSafe(v) {
+        if (v === null || v === undefined) return null;
+        if (typeof v === "number") return Number.isFinite(v) ? v : null;
+        const n = Number(String(v).trim());
+        return Number.isFinite(n) ? n : null;
+      }
+
+      async function fetchData(refresh = false) {
+        try {
+          $refreshSpinner.style.display = "inline-block";
+          $refreshBtn.disabled = true;
+          const url =
+            "/api/llms?refresh=" +
+            (refresh ? "true" : "false") +
+            "&t=" +
+            Date.now();
+
+          const res = await fetch(url);
+          const data = await res.json();
+          if (res.status !== 200) {
+            alert("API error: " + (data.error || res.status));
+            return;
+          }
+          rawData = data.data || [];
+          render();
+        } catch (err) {
+          console.error(err);
+          alert("Failed to fetch data: " + err.message);
+        } finally {
+          $refreshSpinner.style.display = "none";
+          $refreshBtn.disabled = false;
+        }
+      }
+
+      function getPrice(m, type) {
+        if (!m.pricing) return null;
+        if (type === "price_blend") return m.pricing.price_1m_blended_3_to_1;
+        if (type === "price_input") return m.pricing.price_1m_input_tokens;
+        if (type === "price_output") return m.pricing.price_1m_output_tokens;
+        return null;
+      }
+
+      function getAdvancedValue(m, key) {
+        if (key === "release_date") return m.release_date;
+        if (key.startsWith("price_")) return getPrice(m, key);
+        if (key === "ops") return m.median_output_tokens_per_second;
+        if (key === "ttf") return m.median_time_to_first_token_seconds;
+        if (key === "ttfa") return m.median_time_to_first_answer_token;
+        return null;
+      }
+
+      function computeScoresForList(list, treatNullAsZero) {
+        return list.map((m) => {
+          let sum = 0;
+          const missing = [];
+          const details = {};
+
+          METRICS.forEach((metric) => {
+            const k = metric.key;
+            const v =
+              m.metric_values && m.metric_values[k] !== undefined
+                ? m.metric_values[k]
+                : m.evaluations
+                ? m.evaluations[k]
+                : null;
+            const num = parseNumberSafe(v);
+            details[k] = num;
+
+            if (selectedMetrics.has(k)) {
+              if (num === null) {
+                missing.push(k);
+              } else {
+                sum += Number(num);
+              }
+            }
+          });
+          return { ...m, computed: { sum, missing, details } };
+        });
+      }
+
+      // --- Sorting Logic ---
+      function handleHeaderClick(key) {
+        // Logic: Desc -> Asc -> Reset (Default)
+        if (sortState.key !== key) {
+          sortState = { key: key, dir: "desc" }; // New column -> Desc
+        } else {
+          if (sortState.dir === "desc") {
+            sortState.dir = "asc";
+          } else if (sortState.dir === "asc") {
+            // Reset to default
+            sortState = { key: "sum", dir: "desc" };
+          }
+        }
+        render();
+      }
+
+      function getSortValue(item, key) {
+        if (key === "rank") return 0; // Rank is derived from index, but we sort data first
+        if (key === "model")
+          return (item.display_name || item.name || "").toLowerCase();
+        if (key === "sum") return item.computed.sum;
+
+        // Check Standard Metrics
+        if (item.computed.details.hasOwnProperty(key)) {
+          return item.computed.details[key];
+        }
+
+        // Check Advanced Metrics
+        return getAdvancedValue(item, key);
+      }
+
+      // --- Formatting Helpers ---
+      function formatNum(n) {
+        if (n === null || n === undefined) return "—";
+        const num = parseNumberSafe(n);
+        if (num === null) return "—";
+        return (Math.round(num * 1000) / 1000).toString();
+      }
+
+      function formatDateISO(s) {
+        if (s === null || s === undefined || s === "") return "—";
+        if (typeof s === "string" && s.match(/^\d{4}-\d{2}-\d{2}$/)) return s;
+        const d = new Date(s);
+        if (isNaN(d.getTime())) return String(s);
+        return d.toISOString().split("T")[0];
+      }
+
+      function formatPriceVal(v) {
+        const num = parseNumberSafe(v);
+        if (num === null) return "—";
+        return (
+          "$" +
+          num.toLocaleString(undefined, {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+          })
+        );
+      }
+
+      // --- Main Render ---
+      function render() {
+        const treatNullAsZero = $nullZeroChk.checked;
+        const query = $searchInput.value.trim().toLowerCase();
+
+        let list = computeScoresForList(rawData, treatNullAsZero);
+
+        // Filter
+        if (query) {
+          list = list.filter((m) => {
+            const name = m.display_name || m.name || "";
+            const creator = m.creator && m.creator.name ? m.creator.name : "";
+            return (
+              name.toLowerCase().includes(query) ||
+              creator.toLowerCase().includes(query)
+            );
+          });
+        }
+
+        // Sort
+        list.sort((a, b) => {
+          const key = sortState.key;
+          const dir = sortState.dir;
+
+          let valA = getSortValue(a, key);
+          let valB = getSortValue(b, key);
+
+          // Handle Nulls (Always push to bottom in Desc, Top in Asc usually,
+          // but for leaderboard, nulls usually go to bottom regardless. Let's stick to standard.)
+          // Strategy: If value is null, treat as -Infinity for Desc, Infinity for Asc to push to bottom?
+          // Let's treat null as lowest possible value.
+          const isNum = typeof valA === "number" || typeof valB === "number";
+
+          if (valA === null) valA = isNum ? -99999999 : "";
+          if (valB === null) valB = isNum ? -99999999 : "";
+
+          if (valA < valB) return dir === "asc" ? -1 : 1;
+          if (valA > valB) return dir === "asc" ? 1 : -1;
+          return 0;
+        });
+
+        $summary.innerHTML =
+          "Showing <strong>" +
+          list.length +
+          "</strong> models — Sum based on " +
+          selectedMetrics.size +
+          " metrics.";
+
+        // --- Build Table Header ---
+        const thead = document.querySelector("#resultsTable thead");
+        thead.innerHTML = "";
+        const trHead = document.createElement("tr");
+
+        // Helper to create TH
+        const createTh = (key, text, title, isStatic = false) => {
+          const th = document.createElement("th");
+          th.innerHTML = text + '<span class="sort-icon"></span>';
+          if (title) th.title = title;
+          if (isStatic)
+            th.className = key === "rank" ? "col-rank" : "col-model";
+
+          // Active Sort Style
+          if (sortState.key === key) {
+            th.classList.add("active-sort");
+            th.querySelector(".sort-icon").textContent =
+              sortState.dir === "asc" ? "↑" : "↓";
+          }
+
+          th.onclick = () => handleHeaderClick(key);
+          return th;
+        };
+
+        // Static Columns
+        // Note: Rank doesn't really sort, it just follows the list order,
+        // but user might want to reverse the list.
+        trHead.appendChild(createTh("rank", "#", "Rank", true));
+        trHead.appendChild(createTh("model", "Model", "Model Name", true));
+        trHead.appendChild(createTh("sum", "Sum", "Sum of selected metrics"));
+
+        // Dynamic Metric Columns
+        METRICS.forEach((m) => {
+          if (selectedMetrics.has(m.key)) {
+            trHead.appendChild(createTh(m.key, m.label, m.title));
+          }
+        });
+
+        // Advanced Columns (Only Selected)
+        ADV_METRICS.forEach((m) => {
+          if (selectedAdvMetrics.has(m.key)) {
+            const th = createTh(m.key, m.label, m.title);
+            th.classList.add("adv-col");
+            trHead.appendChild(th);
+          }
+        });
+
+        thead.appendChild(trHead);
+
+        // --- Build Table Body ---
+        $resultsBody.innerHTML = "";
+        list.forEach((m, idx) => {
+          const tr = document.createElement("tr");
+
+          // Rank
+          const rankTd = document.createElement("td");
+          rankTd.className = "col-rank";
+          rankTd.textContent = idx + 1;
+          tr.appendChild(rankTd);
+
+          // Model Name
+          const nameTd = document.createElement("td");
+          nameTd.className = "col-model";
+          const strong = document.createElement("strong");
+          strong.textContent = m.display_name || m.name || "—";
+          nameTd.appendChild(strong);
+
+          // Missing Badge
+          const missingCount = m.computed.missing.length;
+          if (missingCount > 0) {
+            const badge = document.createElement("span");
+            badge.className = "missing-badge";
+            badge.innerHTML = "⚠️ " + missingCount + " missing";
+            const missingNames = m.computed.missing
+              .map((k) => {
+                const found = METRICS.find((x) => x.key === k);
+                return found ? found.label : k;
+              })
+              .join(", ");
+            badge.title = "Missing values for: " + missingNames;
+            nameTd.appendChild(badge);
+          }
+
+          if (m.creator && m.creator.name) {
+            const sub = document.createElement("div");
+            sub.style.fontSize = "0.85rem";
+            sub.style.color = "var(--muted)";
+            sub.textContent = m.creator.name;
+            nameTd.appendChild(sub);
+          }
+          tr.appendChild(nameTd);
+
+          // Sum
+          const sumTd = document.createElement("td");
+          sumTd.style.fontWeight = "bold";
+          sumTd.textContent = formatNum(m.computed.sum);
+          tr.appendChild(sumTd);
+
+          // Metric Columns
+          METRICS.forEach((metric) => {
+            if (selectedMetrics.has(metric.key)) {
+              const td = document.createElement("td");
+              const v = m.computed.details[metric.key];
+              td.textContent = formatNum(v);
+              if (v === null) td.className = "null";
+              tr.appendChild(td);
+            }
+          });
+
+          // Advanced Columns
+          ADV_METRICS.forEach((adv) => {
+            if (selectedAdvMetrics.has(adv.key)) {
+              const td = document.createElement("td");
+              td.className = "adv-col";
+
+              const rawVal = getAdvancedValue(m, adv.key);
+
+              if (adv.key === "release_date") {
+                td.textContent = formatDateISO(rawVal);
+              } else if (adv.key.startsWith("price_")) {
+                td.className += " pricing-val";
+                td.textContent = formatPriceVal(rawVal);
+              } else {
+                td.textContent = formatNum(rawVal);
+              }
+              tr.appendChild(td);
+            }
+          });
+
+          $resultsBody.appendChild(tr);
+        });
+
+        // Card View (Mobile)
+        $cards.innerHTML = "";
+        list.forEach((m, idx) => {
+          const card = document.createElement("div");
+          card.className = "card";
+          let titleHtml =
+            "<strong>#" +
+            (idx + 1) +
+            ". " +
+            (m.display_name || m.name || "—") +
+            "</strong>";
+          if (m.computed.missing.length > 0) {
+            titleHtml +=
+              ' <span style="color:#c2410c; font-size:0.75rem;">(⚠️ ' +
+              m.computed.missing.length +
+              " missing)</span>";
+          }
+          card.innerHTML = titleHtml;
+
+          const creatorDiv = document.createElement("div");
+          creatorDiv.style.color = "var(--muted)";
+          creatorDiv.style.fontSize = "0.9rem";
+          creatorDiv.textContent =
+            m.creator && m.creator.name ? m.creator.name : "";
+          card.appendChild(creatorDiv);
+
+          const sumDiv = document.createElement("div");
+          sumDiv.innerHTML =
+            "<strong>Sum:</strong> " + formatNum(m.computed.sum);
+          card.appendChild(sumDiv);
+          $cards.appendChild(card);
+        });
+
+        if (window.innerWidth <= 800) {
+          document.getElementById("resultsTable").style.display = "none";
+          $cards.style.display = "block";
+        } else {
+          document.getElementById("resultsTable").style.display = "table";
+          $cards.style.display = "none";
+        }
+      }
+
+      // --- Event Listeners ---
+      $refreshBtn.addEventListener("click", () => fetchData(true));
+      $exportCsvBtn.addEventListener("click", () => {
+        alert("CSV export not implemented in this demo.");
+      });
+      $viewJsonBtn.addEventListener("click", () => {
+        window.open("/api/llms", "_blank");
+      });
+      $nullZeroChk.addEventListener("change", render);
+      $searchInput.addEventListener("input", () => {
+        setTimeout(render, 150);
+      });
+
+      initControls();
+      fetchData(false);
+      window.addEventListener("resize", render);
+    </script>
+  </body>
+</html>
