@@ -110,8 +110,6 @@ app.get('/api/llms', async (req, res) => {
     }
 
     const API_KEY = process.env.AA_API_KEY;
-    // Note: Agar API Key nahi hai to bhi try karein, shayad public endpoint ho, 
-    // lekin warning log kar dein.
     const headers = { 'Accept': 'application/json' };
     if (API_KEY) headers['x-api-key'] = API_KEY;
 
@@ -158,6 +156,9 @@ app.get('/api/llms', async (req, res) => {
         if (ov.pricing !== undefined) pricing = ov.pricing;
         if (ov.median_output_tokens_per_second !== undefined) ops = ov.median_output_tokens_per_second;
         if (ov.release_date !== undefined) release_date = ov.release_date;
+        // Added override support for TTF and TTFA
+        if (ov.median_time_to_first_token_seconds !== undefined) ttf = ov.median_time_to_first_token_seconds;
+        if (ov.median_time_to_first_answer_token !== undefined) ttfa = ov.median_time_to_first_answer_token;
       }
 
       return {
@@ -193,7 +194,7 @@ app.get('/api/llms', async (req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`Server listening on port ${PORT}`);
+  console.log(`Server listening on http://localhost:${PORT}/`);
   // Server start hote hi keep-alive shuru karein
   startKeepAlive();
 });

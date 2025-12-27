@@ -23,12 +23,14 @@ const ADV_METRICS = [
   { key: "price_input", label: "Price (In)", title: "Price per 1M Input" },
   { key: "price_output", label: "Price (Out)", title: "Price per 1M Output" },
   { key: "ops", label: "OPS", title: "Output Tokens/Sec" },
+  { key: "ttf", label: "TTFT (s)", title: "Time to First Token (Seconds)" },
+  { key: "ttfa", label: "TTFA (s)", title: "Time to First Answer (Seconds)" },
 ];
 
 // State
 let rawData = [];
 let selectedMetrics = new Set(["lcr", "hle", "mmlu_pro", "gpqa", "aime_25", "ifbench", "scicode", "livecodebench"]);
-let selectedAdvMetrics = new Set(["release_date", "price_blend"]);
+let selectedAdvMetrics = new Set(["release_date", "price_blend", "price_input", "price_output"]); // Added ops and ttf as default for visibility
 let sortState = { key: "sum", dir: "desc" };
 
 // Elements
@@ -100,6 +102,9 @@ function getVal(item, key) {
   if (item.metric_values && item.metric_values[key] !== undefined) return item.metric_values[key];
   if (key === "release_date") return item.release_date;
   if (key === "ops") return item.ops;
+  if (key === "ttf") return item.ttf;
+  if (key === "ttfa") return item.ttfa;
+  
   if (key.startsWith("price_") && item.pricing) {
     if (key === "price_blend") return item.pricing.price_1m_blended_3_to_1;
     if (key === "price_input") return item.pricing.price_1m_input_tokens;
