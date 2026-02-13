@@ -90,6 +90,18 @@ button:disabled { opacity: 0.6; cursor: not-allowed; }
   padding-top: 1rem;
   border-top: 1px solid var(--border);
 }
+
+.metrics-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.metrics-actions button {
+  padding: 0.45rem 0.75rem;
+  font-size: 0.85rem;
+}
+
 .metrics-group { margin-bottom: 1rem; }
 .metrics-group strong { display: block; margin-bottom: 0.5rem; font-size: 0.9rem; }
 .metrics-grid {
@@ -144,21 +156,69 @@ button:disabled { opacity: 0.6; cursor: not-allowed; }
 }
 .table th:hover { background: #e2e8f0; }
 .table th.active-sort { border-bottom: 2px solid var(--primary); color: var(--primary); }
+/* Zebra striping (tbody rows) */
+.table tbody tr:nth-child(odd) { background: var(--card-bg); }
+.table tbody tr:nth-child(even) { background: #f1f5f9; }
 
 /* Sticky Columns Logic */
 .col-rank { position: sticky; left: 0; background: inherit; z-index: 20; border-right: 1px solid var(--border); text-align: center; width: 50px; }
-.col-model { position: sticky; left: 50px; background: inherit; z-index: 20; border-right: 1px solid var(--border); min-width: 200px; max-width: 300px; overflow: hidden; text-overflow: ellipsis; }
+.col-model {
+  position: sticky;
+  left: 50px;
+  background: inherit;
+  z-index: 20;
+  border-right: 1px solid var(--border);
+  min-width: 200px;
+  max-width: 300px;
+  overflow: hidden; /* cell overflow clip rahe, ellipsis sirf name par */
+}
+
+/* Model cell: name ellipsis, badge always visible */
+.model-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.model-top {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.model-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 700;
+}
+
+.model-creator {
+  font-size: 0.8em;
+  color: #666;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 thead th.col-rank, thead th.col-model { z-index: 30; background: #f8fafc; }
 
 .badge-missing {
   display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  white-space: nowrap;
   font-size: 0.7rem;
   padding: 2px 6px;
   background: #fff7ed;
   color: #c2410c;
   border: 1px solid #fdba74;
   border-radius: 4px;
-  margin-left: 6px;
+  margin-left: 0;
 }
 
 /* Mobile Cards (Hidden by default on Desktop) */

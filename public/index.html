@@ -1,8 +1,11 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=1"
+    />
     <title>Artificial Analysis — Model Ranker</title>
     <link rel="stylesheet" href="css/style.css" />
   </head>
@@ -21,7 +24,11 @@
       <div class="controls-wrapper panel">
         <div class="controls-top">
           <div class="search-box">
-            <input id="searchInput" type="search" placeholder="Search models..." />
+            <input
+              id="searchInput"
+              type="search"
+              placeholder="Search models..."
+            />
           </div>
           <div class="action-buttons">
             <button id="refreshBtn" class="btn-primary">
@@ -30,7 +37,7 @@
             <button id="viewJsonBtn" class="btn-secondary">JSON</button>
           </div>
         </div>
-        
+
         <div class="controls-options">
           <label class="toggle-label">
             <input id="nullZeroChk" type="checkbox" checked />
@@ -42,6 +49,11 @@
         <details class="metrics-details">
           <summary>Customize Metrics & Columns</summary>
           <div class="metrics-panel">
+            <div class="metrics-actions">
+              <button id="selectAllBtn" class="btn-secondary" type="button">
+                Select All
+              </button>
+            </div>
             <div class="metrics-group">
               <strong>Benchmark Metrics (Summed)</strong>
               <div id="metricsControls" class="metrics-grid"></div>
@@ -72,7 +84,10 @@
       </div>
 
       <footer>
-        Data provided by <a href="https://artificialanalysis.ai/" target="_blank">Artificial Analysis</a>.
+        Data provided by
+        <a href="https://artificialanalysis.ai/" target="_blank"
+          >Artificial Analysis</a
+        >.
       </footer>
     </main>
 
