@@ -64,6 +64,7 @@ let selectedAdvMetrics = new Set([
   "price_blend",
   "price_input",
   "price_output",
+  "ops",
 ]); // Added ops and ttf as default for visibility
 let sortState = { key: "sum", dir: "desc" };
 
@@ -77,6 +78,7 @@ const $refreshBtn = document.getElementById("refreshBtn");
 const $refreshSpinner = document.getElementById("refreshSpinner");
 const $searchInput = document.getElementById("searchInput");
 const $nullZeroChk = document.getElementById("nullZeroChk");
+let debounceTimer = null;
 
 // --- Initialization ---
 function init() {
@@ -120,6 +122,8 @@ function createCheckboxes(list, container, set) {
     container.appendChild(div);
     document.getElementById(id).addEventListener("change", (e) => {
       e.target.checked ? set.add(m.key) : set.delete(m.key);
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(render, 300);
       render();
     });
   });
@@ -152,6 +156,42 @@ const parseNum = (v) =>
 const formatNum = (n) =>
   n === null ? "—" : Number(n).toFixed(2).replace(/\.00$/, "");
 const formatPrice = (n) => (n === null ? "—" : "$" + Number(n).toFixed(2));
+
+const parseReleaseDate = (dateStr) => {
+  if (!dateStr) return null;
+  // Handle ISO format "YYYY-MM-DD" or "YYYY-MM"
+  const isoMatch = dateStr.match(/^(\d{4})-(\d{2})(?:-(\d{2}))?$/);
+  if (isoMatch) {
+    const year = parseInt(isoMatch[1], 10);
+    const month = parseInt(isoMatch[2], 10) - 1; // JS months are 0-indexed
+    const day = isoMatch[3] ? parseInt(isoMatch[3], 10) : 1;
+    return new Date(year, month, day).getTime();
+  }
+  // Handle "Mon YYYY" format like "Apr 2025"
+  const namedMatch = dateStr.match(/^([A-Za-z]{3})\s+(\d{4})$/);
+  if (namedMatch) {
+    const months = {
+      jan: 0,
+      feb: 1,
+      mar: 2,
+      apr: 3,
+      may: 4,
+      jun: 5,
+      jul: 6,
+      aug: 7,
+      sep: 8,
+      oct: 9,
+      nov: 10,
+      dec: 11,
+    };
+    const month = months[namedMatch[1].toLowerCase().slice(0, 3)];
+    const year = parseInt(namedMatch[2], 10);
+    if (month !== undefined) return new Date(year, month, 1).getTime();
+  }
+  // Fallback: try native Date parsing
+  const parsed = new Date(dateStr);
+  return isNaN(parsed.getTime()) ? null : parsed.getTime();
+};
 
 function getVal(item, key) {
   if (key === "sum") return item.sum_score;
@@ -215,6 +255,21 @@ function render() {
     let vb = sortState.key === "sum" ? b.computedSum : getVal(b, sortState.key);
 
     // Handle nulls for sorting
+
+    // Special handling for release_date sorting
+    if (sortState.key === "release_date") {
+      const dateA = parseReleaseDate(va);
+      const dateB = parseReleaseDate(vb);
+      if (dateA === null && dateB === null) return 0;
+      if (dateA === null) return sortState.dir === "asc" ? 1 : -1;
+      if (dateB === null) return sortState.dir === "asc" ? -1 : 1;
+      return sortState.dir === "asc" ? dateA - dateB : dateB - dateA;
+    }
+
+    // For all other keys, ensure nulls sort to bottom
+    if (va === null) va = -Infinity;
+    if (vb === null) vb = -Infinity;
+
     if (va === null) va = -Infinity;
     if (vb === null) vb = -Infinity;
 
@@ -300,7 +355,22 @@ function renderTable(list) {
       const val = getVal(item, m.key);
       let display = formatNum(val);
       if (m.key.includes("price")) display = formatPrice(val);
-      if (m.key === "release_date") display = val || "—";
+      if (m.key === "release_date") {
+        if (!val) {
+          display = "—";
+        } else {
+          // Parse and format as dd-mm-yyyy
+          const date = new Date(val);
+          if (!isNaN(date.getTime())) {
+            const dd = String(date.getDate()).padStart(2, "0");
+            const mm = String(date.getMonth() + 1).padStart(2, "0");
+            const yyyy = date.getFullYear();
+            display = `${dd}-${mm}-${yyyy}`;
+          } else {
+            display = val; // fallback to raw value
+          }
+        }
+      }
       row.innerHTML += `<td>${display}</td>`;
     });
 
@@ -322,6 +392,22 @@ function renderCards(list) {
         const val = formatNum(item.metric_values[m.key]);
         statsHtml += `<div class="mini-stat"><span>${m.label}</span><strong>${val}</strong></div>`;
       });
+
+    // Add release date to card if selected
+    if (selectedAdvMetrics.has("release_date")) {
+      const rawDate = getVal(item, "release_date");
+      let dateDisplay = "—";
+      if (rawDate) {
+        const date = new Date(rawDate);
+        if (!isNaN(date.getTime())) {
+          const dd = String(date.getDate()).padStart(2, "0");
+          const mm = String(date.getMonth() + 1).padStart(2, "0");
+          const yyyy = date.getFullYear();
+          dateDisplay = `${dd}-${mm}-${yyyy}`;
+        }
+      }
+      statsHtml += `<div class="mini-stat"><span>Released</span><strong>${dateDisplay}</strong></div>`;
+    }
 
     card.innerHTML = `
       <div class="card-header">
