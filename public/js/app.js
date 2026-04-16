@@ -46,8 +46,8 @@ const ADV_METRICS = [
   { key: "ttf", label: "TTFT (s)", title: "Time to First Token (Seconds)" },
   {
     key: "perf_avg",
-    label: "Avg Speed (s)",
-    title: "Average of TTFA and Output Tokens/Sec",
+    label: "Speed Score",
+    title: "50/50 Normalized Score of TTFA and Output Tokens/Sec (1 = Best)",
   },
 
   { key: "ttfa", label: "TTFA (s)", title: "Time to First Answer (Seconds)" },
@@ -283,12 +283,60 @@ const parseReleaseDate = (dateStr) => {
   return isNaN(parsed.getTime()) ? null : parsed.getTime();
 };
 
+let cachedStats = null;
+let lastRawDataRef = null;
+
+function getStats() {
+  if (lastRawDataRef === rawData && cachedStats) return cachedStats;
+
+  let minTtfa = Infinity,
+    maxTtfa = -Infinity;
+  let minOps = Infinity,
+    maxOps = -Infinity;
+
+  rawData.forEach((item) => {
+    let t = item.ttfa;
+    let o = item.ops;
+
+    if (t !== null && t !== undefined) {
+      if (t > 0 && t < minTtfa) minTtfa = t; // 0 is ignored for min
+      if (t > maxTtfa) maxTtfa = t;
+    }
+    if (o !== null && o !== undefined) {
+      if (o > 0 && o < minOps) minOps = o; // 0 is ignored for min
+      if (o > maxOps) maxOps = o;
+    }
+  });
+
+  if (minTtfa === Infinity) minTtfa = 0;
+  if (minOps === Infinity) minOps = 0;
+
+  cachedStats = { minTtfa, maxTtfa, minOps, maxOps };
+  lastRawDataRef = rawData;
+  return cachedStats;
+}
+
 function getVal(item, key) {
   if (key === "sum") return item.sum_score;
   if (key === "perf_avg") {
     let t = item.ttfa;
     let o = item.ops;
-    return t !== null && o !== null ? (t + o) / 2 : null;
+
+    if (t === null || o === null) return null;
+
+    const stats = getStats();
+
+    // TTFA mapping: Lower is better
+    let ttfaRange = stats.maxTtfa - stats.minTtfa;
+    let normTtfa = ttfaRange <= 0 ? 0 : (stats.maxTtfa - t) / ttfaRange;
+    normTtfa = Math.max(0, Math.min(1, normTtfa)); // Clamping for 0 outlier values
+
+    // OTPS mapping: Higher is better
+    let opsRange = stats.maxOps - stats.minOps;
+    let normOps = opsRange <= 0 ? 0 : (o - stats.minOps) / opsRange;
+    normOps = Math.max(0, Math.min(1, normOps)); // Clamping for 0 outlier values
+
+    return 0.5 * normTtfa + 0.5 * normOps;
   }
   if (key === "elo") return item.metric_values?.elo ?? null;
   if (key === "appearances") return item.metric_values?.appearances ?? null;
