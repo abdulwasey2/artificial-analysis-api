@@ -44,6 +44,12 @@ const ADV_METRICS = [
   { key: "price_output", label: "Price (Out)", title: "Price per 1M Output" },
   { key: "ops", label: "OPS", title: "Output Tokens/Sec" },
   { key: "ttf", label: "TTFT (s)", title: "Time to First Token (Seconds)" },
+  {
+    key: "perf_avg",
+    label: "Avg Speed (s)",
+    title: "Average of TTFA and Output Tokens/Sec",
+  },
+
   { key: "ttfa", label: "TTFA (s)", title: "Time to First Answer (Seconds)" },
 ];
 
@@ -64,6 +70,8 @@ let selectedAdvMetrics = new Set([
   "price_blend",
   "price_input",
   "price_output",
+  "perf_avg",
+
   "ops",
 ]); // Added ops and ttf as default for visibility
 let sortState = { key: "sum", dir: "desc" };
@@ -80,8 +88,70 @@ const $searchInput = document.getElementById("searchInput");
 const $nullZeroChk = document.getElementById("nullZeroChk");
 let debounceTimer = null;
 
+let currentCategory = "llms";
+
+const MEDIA_METRICS = [
+  { key: "elo", label: "ELO Rating", title: "ELO Rating" },
+  { key: "appearances", label: "Appearances", title: "Number of Matches" },
+  { key: "rank", label: "Rank", title: "Leaderboard Rank" },
+];
+
+const MEDIA_ADV_METRICS = [
+  { key: "release_date", label: "Release", title: "Release Date" },
+  { key: "ci95", label: "95% CI", title: "95% Confidence Interval" },
+];
+
+const ORIGINAL_METRICS = [...METRICS];
+const ORIGINAL_ADV_METRICS = [...ADV_METRICS];
+let originalSelectedMetrics = new Set();
+let originalSelectedAdvMetrics = new Set();
+
+function switchCategory(cat) {
+  if (currentCategory === "llms" && cat !== "llms") {
+    originalSelectedMetrics = new Set(selectedMetrics);
+    originalSelectedAdvMetrics = new Set(selectedAdvMetrics);
+  }
+  currentCategory = cat;
+
+  document.querySelectorAll(".tab-btn").forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.cat === cat);
+  });
+
+  METRICS.length = 0;
+  ADV_METRICS.length = 0;
+  selectedMetrics.clear();
+  selectedAdvMetrics.clear();
+
+  if (cat === "llms") {
+    METRICS.push(...ORIGINAL_METRICS);
+    ADV_METRICS.push(...ORIGINAL_ADV_METRICS);
+    sortState = { key: "sum", dir: "desc" };
+    originalSelectedMetrics.forEach((k) => selectedMetrics.add(k));
+    originalSelectedAdvMetrics.forEach((k) => selectedAdvMetrics.add(k));
+    $nullZeroChk.closest(".controls-options").style.display = "block";
+  } else {
+    METRICS.push(...MEDIA_METRICS);
+    ADV_METRICS.push(...MEDIA_ADV_METRICS);
+    sortState = { key: "elo", dir: "desc" };
+    MEDIA_METRICS.forEach((m) => selectedMetrics.add(m.key));
+    MEDIA_ADV_METRICS.forEach((m) => selectedAdvMetrics.add(m.key));
+    $nullZeroChk.closest(".controls-options").style.display = "none";
+  }
+
+  $metricsControls.innerHTML = "";
+  $advMetricsControls.innerHTML = "";
+  createCheckboxes(METRICS, $metricsControls, selectedMetrics);
+  createCheckboxes(ADV_METRICS, $advMetricsControls, selectedAdvMetrics);
+
+  fetchData(false);
+}
+
 // --- Initialization ---
 function init() {
+  document.querySelectorAll(".tab-btn").forEach((btn) => {
+    btn.addEventListener("click", (e) => switchCategory(e.target.dataset.cat));
+  });
+
   createCheckboxes(METRICS, $metricsControls, selectedMetrics);
   createCheckboxes(ADV_METRICS, $advMetricsControls, selectedAdvMetrics);
 
@@ -91,6 +161,17 @@ function init() {
   document
     .getElementById("viewJsonBtn")
     .addEventListener("click", () => window.open("/api/llms", "_blank"));
+
+  document.getElementById("viewJsonBtn").addEventListener(
+    "click",
+    (e) => {
+      if (currentCategory !== "llms") {
+        e.stopPropagation();
+        window.open("/api/media/" + currentCategory, "_blank");
+      }
+    },
+    true,
+  );
 
   document.getElementById("selectAllBtn").addEventListener("click", () => {
     // Benchmark Metrics (Summed)
@@ -134,6 +215,15 @@ async function fetchData(refresh = false) {
   try {
     $refreshBtn.disabled = true;
     $refreshSpinner.style.display = "inline-block";
+    const targetEndpoint =
+      currentCategory === "llms"
+        ? `/api/llms?refresh=${refresh}`
+        : `/api/media/${currentCategory}?refresh=${refresh}`;
+    const _fetch = window.fetch;
+    window.fetch = async (url) => {
+      window.fetch = _fetch;
+      return _fetch(url.includes("/api/llms") ? targetEndpoint : url);
+    };
 
     const res = await fetch(`/api/llms?refresh=${refresh}`);
     const json = await res.json();
@@ -195,6 +285,16 @@ const parseReleaseDate = (dateStr) => {
 
 function getVal(item, key) {
   if (key === "sum") return item.sum_score;
+  if (key === "perf_avg") {
+    let t = item.ttfa;
+    let o = item.ops;
+    return t !== null && o !== null ? (t + o) / 2 : null;
+  }
+  if (key === "elo") return item.metric_values?.elo ?? null;
+  if (key === "appearances") return item.metric_values?.appearances ?? null;
+  if (key === "rank") return item.metric_values?.rank ?? null;
+  if (key === "ci95") return item.ci95 ?? null;
+
   if (item.metric_values && item.metric_values[key] !== undefined)
     return item.metric_values[key];
   if (key === "release_date") return item.release_date;
@@ -238,6 +338,9 @@ function render() {
               : parseNum(rawVal) === null;
 
           if (isMissing) missing.push(m.label);
+
+          if (m.key === "ci95" && rawVal !== null && rawVal !== "")
+            missing.splice(missing.indexOf(m.label), 1);
         }
       });
       return { ...item, computedSum: sum, missing };
@@ -273,6 +376,11 @@ function render() {
     if (va === null) va = -Infinity;
     if (vb === null) vb = -Infinity;
 
+    if (typeof va === "string" || typeof vb === "string")
+      return sortState.dir === "asc"
+        ? String(va).localeCompare(String(vb))
+        : String(vb).localeCompare(String(va));
+
     return sortState.dir === "asc" ? va - vb : vb - va;
   });
 
@@ -304,7 +412,11 @@ function renderTable(list) {
 
   addTh("rank", "#", true);
   addTh("model", "Model", true);
-  addTh("sum", "Sum");
+
+  if (currentCategory === "llms") {
+    addTh("sum", "Sum");
+  }
+
   METRICS.filter((m) => selectedMetrics.has(m.key)).forEach((m) =>
     addTh(m.key, m.label),
   );
@@ -341,9 +453,10 @@ function renderTable(list) {
         </div>
       </td>
     `;
-
-    // Sum
-    row.innerHTML += `<td><strong>${formatNum(item.computedSum)}</strong></td>`;
+    if (currentCategory === "llms") {
+      // Sum
+      row.innerHTML += `<td><strong>${formatNum(item.computedSum)}</strong></td>`;
+    }
 
     // Metrics
     METRICS.filter((m) => selectedMetrics.has(m.key)).forEach((m) => {
@@ -355,6 +468,9 @@ function renderTable(list) {
       const val = getVal(item, m.key);
       let display = formatNum(val);
       if (m.key.includes("price")) display = formatPrice(val);
+
+      if (m.key === "ci95") display = val || "—";
+
       if (m.key === "release_date") {
         if (!val) {
           display = "—";
@@ -379,6 +495,12 @@ function renderTable(list) {
 }
 
 function renderCards(list) {
+  const isMedia = currentCategory !== "llms";
+  document.documentElement.style.setProperty(
+    "--media-view-display",
+    isMedia ? "none" : "flex",
+  );
+
   $cardsContainer.innerHTML = "";
   list.forEach((item, idx) => {
     const card = document.createElement("div");

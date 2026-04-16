@@ -219,6 +219,81 @@ app.get("/api/llms", async (req, res) => {
   }
 });
 
+const MEDIA_API_URLS = {
+  "text-to-image":
+    "https://artificialanalysis.ai/api/v2/data/media/text-to-image",
+  "image-editing":
+    "https://artificialanalysis.ai/api/v2/data/media/image-editing",
+  "text-to-speech":
+    "https://artificialanalysis.ai/api/v2/data/media/text-to-speech",
+  "text-to-video":
+    "https://artificialanalysis.ai/api/v2/data/media/text-to-video",
+  "image-to-video":
+    "https://artificialanalysis.ai/api/v2/data/media/image-to-video",
+};
+
+let mediaCache = {};
+
+app.get("/api/media/:category", async (req, res) => {
+  const category = req.params.category;
+  if (!MEDIA_API_URLS[category])
+    return res.status(404).json({ error: "Invalid category" });
+
+  const refresh = req.query.refresh === "true";
+  if (
+    mediaCache[category] &&
+    !refresh &&
+    Date.now() - mediaCache[category].timestamp < CACHE_TTL_SECONDS * 1000
+  ) {
+    return res.json(mediaCache[category].data);
+  }
+
+  try {
+    const API_KEY = process.env.AA_API_KEY;
+    const headers = { Accept: "application/json" };
+    if (API_KEY) headers["x-api-key"] = API_KEY;
+
+    console.log(`Fetching ${category} data from upstream...`);
+    const resp = await fetch(MEDIA_API_URLS[category], { headers });
+    if (resp.status !== 200) {
+      const text = await resp.text();
+      return res
+        .status(resp.status)
+        .json({ error: "Upstream error", body: text });
+    }
+    const body = await resp.json();
+
+    const processed = (body.data || []).map((m) => ({
+      id: m.id,
+      name: m.name,
+      display_name: m.display_name || m.name,
+      creator: m.model_creator,
+      metric_values: { elo: m.elo, appearances: m.appearances, rank: m.rank },
+      missing_keys: [],
+      release_date: m.release_date || null,
+      ci95: m.ci95 || null,
+    }));
+
+    processed.sort(
+      (a, b) => (b.metric_values.elo || 0) - (a.metric_values.elo || 0),
+    );
+
+    const result = {
+      status: 200,
+      fetched_at: new Date().toISOString(),
+      data: processed,
+    };
+
+    mediaCache[category] = { timestamp: Date.now(), data: result };
+    res.json(result);
+  } catch (err) {
+    console.error(err);
+    res
+      .status(500)
+      .json({ error: "Internal server error", details: err.message });
+  }
+});
+
 app.listen(PORT, () => {
   console.log(`Server listening on http://localhost:${PORT}/`);
   // Server start hote hi keep-alive shuru karein
