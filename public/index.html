@@ -67,7 +67,7 @@
         </div>
 
         <!-- Collapsible Metrics Selection -->
-        <details class="metrics-details">
+        <!-- <details class="metrics-details">
           <summary>Customize Metrics & Columns</summary>
           <div class="metrics-panel">
             <div class="metrics-actions">
@@ -84,7 +84,13 @@
               <div id="advMetricsControls" class="metrics-grid"></div>
             </div>
           </div>
-        </details>
+        </details> -->
+
+        <div class="metrics-trigger">
+          <button id="openModalBtn" class="btn-secondary">
+            ⚙️ Customize Benchmarks & Columns
+          </button>
+        </div>
       </div>
 
       <!-- Summary Bar -->
@@ -112,6 +118,39 @@
       </footer>
     </main>
 
+    <!-- Metrics Modal -->
+    <div id="metricsModal" class="modal-overlay">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2>Customize Metrics & Columns</h2>
+          <button id="closeModalBtn" class="close-modal">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div class="metrics-actions" style="margin-bottom: 1.5rem">
+            <button id="selectAllBtn" class="btn-secondary" type="button">
+              Select All
+            </button>
+            <button id="deselectAllBtn" class="btn-secondary" type="button">
+              Deselect All
+            </button>
+          </div>
+          <div class="metrics-group">
+            <strong>Benchmark Metrics (Summed)</strong>
+            <div id="metricsControls" class="metrics-grid"></div>
+          </div>
+          <div class="metrics-group" style="margin-top: 1.5rem">
+            <strong>Advanced Info</strong>
+            <div id="advMetricsControls" class="metrics-grid"></div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button id="cancelModalBtn" class="btn-secondary">Cancel</button>
+          <button id="applyMetricsBtn" class="btn-primary">
+            Apply Selection
+          </button>
+        </div>
+      </div>
+    </div>
     <script src="js/app.js"></script>
   </body>
 </html>

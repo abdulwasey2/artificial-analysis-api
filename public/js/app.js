@@ -82,6 +82,13 @@ const $advMetricsControls = document.getElementById("advMetricsControls");
 const $resultsBody = document.getElementById("resultsBody");
 const $cardsContainer = document.getElementById("cardsContainer");
 const $summary = document.getElementById("summary");
+const $metricsModal = document.getElementById("metricsModal");
+const $openModalBtn = document.getElementById("openModalBtn");
+const $closeModalBtn = document.getElementById("closeModalBtn");
+const $cancelModalBtn = document.getElementById("cancelModalBtn");
+const $applyMetricsBtn = document.getElementById("applyMetricsBtn");
+const $deselectAllBtn = document.getElementById("deselectAllBtn");
+
 const $refreshBtn = document.getElementById("refreshBtn");
 const $refreshSpinner = document.getElementById("refreshSpinner");
 const $searchInput = document.getElementById("searchInput");
@@ -157,6 +164,25 @@ function init() {
 
   $refreshBtn.addEventListener("click", () => fetchData(true));
   $nullZeroChk.addEventListener("change", render);
+  $openModalBtn.addEventListener(
+    "click",
+    () => ($metricsModal.style.display = "flex"),
+  );
+
+  const closeModal = () => ($metricsModal.style.display = "none");
+  $closeModalBtn.addEventListener("click", closeModal);
+  $cancelModalBtn.addEventListener("click", closeModal);
+
+  $applyMetricsBtn.addEventListener("click", () => {
+    render();
+    closeModal();
+  });
+
+  // Close modal if clicking outside content
+  $metricsModal.addEventListener("click", (e) => {
+    if (e.target === $metricsModal) closeModal();
+  });
+
   $searchInput.addEventListener("input", () => setTimeout(render, 300));
   document
     .getElementById("viewJsonBtn")
@@ -188,7 +214,20 @@ function init() {
       if (el) el.checked = true;
     });
 
-    render();
+    // render();
+  });
+
+  $deselectAllBtn.addEventListener("click", () => {
+    selectedMetrics.clear();
+    selectedAdvMetrics.clear();
+    METRICS.forEach((m) => {
+      const el = document.getElementById(`chk_${m.key}`);
+      if (el) el.checked = false;
+    });
+    ADV_METRICS.forEach((m) => {
+      const el = document.getElementById(`chk_${m.key}`);
+      if (el) el.checked = false;
+    });
   });
 
   fetchData(false);
@@ -203,9 +242,6 @@ function createCheckboxes(list, container, set) {
     container.appendChild(div);
     document.getElementById(id).addEventListener("change", (e) => {
       e.target.checked ? set.add(m.key) : set.delete(m.key);
-      clearTimeout(debounceTimer);
-      debounceTimer = setTimeout(render, 300);
-      render();
     });
   });
 }
