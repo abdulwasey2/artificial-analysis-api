@@ -404,11 +404,15 @@ function render() {
     .map((item) => {
       let sum = 0;
       let missing = [];
+      let missingKeys = [];
       METRICS.forEach((m) => {
         if (selectedMetrics.has(m.key)) {
           const val = parseNum(item.metric_values[m.key]);
           if (val !== null) sum += val;
-          else missing.push(m.label);
+          else {
+            missing.push(m.label);
+            missingKeys.push(m.key);
+          }
         }
       });
       // Advanced Info columns bhi missing count mein include (taake jis column mein "—" aa raha ho badge match kare)
@@ -421,13 +425,18 @@ function render() {
               ? rawVal === null || rawVal === undefined || rawVal === ""
               : parseNum(rawVal) === null;
 
-          if (isMissing) missing.push(m.label);
+          if (isMissing) {
+            missing.push(m.label);
+            missingKeys.push(m.key);
+          }
 
-          if (m.key === "ci95" && rawVal !== null && rawVal !== "")
+          if (m.key === "ci95" && rawVal !== null && rawVal !== "") {
             missing.splice(missing.indexOf(m.label), 1);
+            missingKeys.splice(missingKeys.indexOf(m.key), 1);
+          }
         }
       });
-      return { ...item, computedSum: sum, missing };
+      return { ...item, computedSum: sum, missing, missingKeys };
     })
     .filter((item) => {
       return (
@@ -474,6 +483,18 @@ function render() {
   renderCards(list);
 }
 
+window.hideMissingMetrics = function (missingKeysStr) {
+  if (!missingKeysStr) return;
+  const keysToHide = missingKeysStr.split(",");
+  keysToHide.forEach((key) => {
+    selectedMetrics.delete(key);
+    selectedAdvMetrics.delete(key);
+    const el = document.getElementById(`chk_${key}`);
+    if (el) el.checked = false;
+  });
+  render();
+};
+
 function renderTable(list) {
   // Header
   const thead = document.querySelector("#resultsTable thead");
@@ -494,8 +515,18 @@ function renderTable(list) {
     tr.appendChild(th);
   };
 
+  // const thFilter = document.createElement("th");
+  // thFilter.textContent = "Auto-Filter";
+  // thFilter.style.cursor = "default";
+  // tr.appendChild(thFilter);
+
   addTh("rank", "#", true);
   addTh("model", "Model", true);
+
+  const thFilter = document.createElement("th");
+  thFilter.textContent = "Auto-Filter";
+  thFilter.style.cursor = "default";
+  tr.appendChild(thFilter);
 
   if (currentCategory === "llms") {
     addTh("sum", "Sum");
@@ -537,6 +568,13 @@ function renderTable(list) {
         </div>
       </td>
     `;
+
+    const filterBtnHtml =
+      item.missingKeys && item.missingKeys.length > 0
+        ? `<button class="btn-secondary" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;" onclick="hideMissingMetrics('${item.missingKeys.join(",")}')">Filter Missing</button>`
+        : `<span style="font-size: 0.8rem; color: var(--text-muted);">&mdash;</span>`;
+    row.innerHTML += `<td>${filterBtnHtml}</td>`;
+
     if (currentCategory === "llms") {
       // Sum
       row.innerHTML += `<td><strong>${formatNum(item.computedSum)}</strong></td>`;
