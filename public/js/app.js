@@ -93,6 +93,17 @@ const $refreshBtn = document.getElementById("refreshBtn");
 const $refreshSpinner = document.getElementById("refreshSpinner");
 const $searchInput = document.getElementById("searchInput");
 const $nullZeroChk = document.getElementById("nullZeroChk");
+
+const $minBlended = document.getElementById("minBlended");
+const $maxBlended = document.getElementById("maxBlended");
+const $minInput = document.getElementById("minInput");
+const $maxInput = document.getElementById("maxInput");
+const $minOutput = document.getElementById("minOutput");
+const $maxOutput = document.getElementById("maxOutput");
+const $priceFilters = document.getElementById("priceFilters");
+const $priceFiltersActions = document.getElementById("priceFiltersActions");
+const $applyPriceBtn = document.getElementById("applyPriceBtn");
+
 let debounceTimer = null;
 
 let currentCategory = "llms";
@@ -136,6 +147,8 @@ function switchCategory(cat) {
     originalSelectedMetrics.forEach((k) => selectedMetrics.add(k));
     originalSelectedAdvMetrics.forEach((k) => selectedAdvMetrics.add(k));
     $nullZeroChk.closest(".controls-options").style.display = "block";
+    $priceFilters.style.display = "block";
+    $priceFiltersActions.style.display = "block";
   } else {
     METRICS.push(...MEDIA_METRICS);
     ADV_METRICS.push(...MEDIA_ADV_METRICS);
@@ -143,6 +156,8 @@ function switchCategory(cat) {
     MEDIA_METRICS.forEach((m) => selectedMetrics.add(m.key));
     MEDIA_ADV_METRICS.forEach((m) => selectedAdvMetrics.add(m.key));
     $nullZeroChk.closest(".controls-options").style.display = "none";
+    $priceFilters.style.display = "none";
+    $priceFiltersActions.style.display = "none";
   }
 
   $metricsControls.innerHTML = "";
@@ -164,6 +179,8 @@ function init() {
 
   $refreshBtn.addEventListener("click", () => fetchData(true));
   $nullZeroChk.addEventListener("change", render);
+  $applyPriceBtn.addEventListener("click", render);
+
   $openModalBtn.addEventListener(
     "click",
     () => ($metricsModal.style.display = "flex"),
@@ -398,6 +415,20 @@ function getVal(item, key) {
 function render() {
   const query = $searchInput.value.toLowerCase();
   const treatNullAsZero = $nullZeroChk.checked;
+  let minB = NaN,
+    maxB = NaN,
+    minI = NaN,
+    maxI = NaN,
+    minO = NaN,
+    maxO = NaN;
+  if (currentCategory === "llms") {
+    minB = parseFloat($minBlended.value);
+    maxB = parseFloat($maxBlended.value);
+    minI = parseFloat($minInput.value);
+    maxI = parseFloat($maxInput.value);
+    minO = parseFloat($minOutput.value);
+    maxO = parseFloat($maxOutput.value);
+  }
 
   // 1. Process Data
   let list = rawData
@@ -439,6 +470,18 @@ function render() {
       return { ...item, computedSum: sum, missing, missingKeys };
     })
     .filter((item) => {
+      if (currentCategory === "llms") {
+        const b = getVal(item, "price_blend");
+        const i = getVal(item, "price_input");
+        const o = getVal(item, "price_output");
+        if (!isNaN(minB) && (b === null || b < minB)) return false;
+        if (!isNaN(maxB) && (b === null || b > maxB)) return false;
+        if (!isNaN(minI) && (i === null || i < minI)) return false;
+        if (!isNaN(maxI) && (i === null || i > maxI)) return false;
+        if (!isNaN(minO) && (o === null || o < minO)) return false;
+        if (!isNaN(maxO) && (o === null || o > maxO)) return false;
+      }
+
       return (
         (item.display_name || "").toLowerCase().includes(query) ||
         (item.creator?.name || "").toLowerCase().includes(query)

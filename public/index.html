@@ -86,6 +86,72 @@
           </div>
         </details> -->
 
+        <div id="priceFilters" class="price-filters-container">
+          <h4>Price Filters ($ per 1M tokens)</h4>
+          <div class="filter-grid">
+            <div class="filter-group">
+              <label>Blended Price</label>
+              <div class="filter-inputs">
+                <input
+                  type="number"
+                  id="minBlended"
+                  step="0.01"
+                  placeholder="Min"
+                />
+                <input
+                  type="number"
+                  id="maxBlended"
+                  step="0.01"
+                  placeholder="Max"
+                />
+              </div>
+            </div>
+            <div class="filter-group">
+              <label>Input Price</label>
+              <div class="filter-inputs">
+                <input
+                  type="number"
+                  id="minInput"
+                  step="0.01"
+                  placeholder="Min"
+                />
+                <input
+                  type="number"
+                  id="maxInput"
+                  step="0.01"
+                  placeholder="Max"
+                />
+              </div>
+            </div>
+            <div class="filter-group">
+              <label>Output Price</label>
+              <div class="filter-inputs">
+                <input
+                  type="number"
+                  id="minOutput"
+                  step="0.01"
+                  placeholder="Min"
+                />
+                <input
+                  type="number"
+                  id="maxOutput"
+                  step="0.01"
+                  placeholder="Max"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div
+          id="priceFiltersActions"
+          style="text-align: right; margin-bottom: 1rem"
+        >
+          <button id="applyPriceBtn" class="btn-primary" type="button">
+            Apply Price Filters
+          </button>
+        </div>
+
         <div class="metrics-trigger">
           <button id="openModalBtn" class="btn-secondary">
             ⚙️ Customize Benchmarks & Columns
